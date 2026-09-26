@@ -1,0 +1,6 @@
+native/GFX/build-native/
+*.exe
+*.pdb
+*.obj
+*.exp
+*.lib
