@@ -16,7 +16,7 @@ public static class SetupCore {
     public static string Hash(byte[] bytes){using(var s=SHA256.Create())return BitConverter.ToString(s.ComputeHash(bytes)).Replace("-","").ToLowerInvariant();}
     public static string HashFile(string p){return Hash(File.ReadAllBytes(p));}
     public static byte[] Payload(string name){using(var s=Assembly.GetExecutingAssembly().GetManifestResourceStream("payload."+name)){if(s==null)throw new Exception("Missing embedded file: "+name);using(var m=new MemoryStream()){s.CopyTo(m);return m.ToArray();}}}
-    static readonly string[] Names={Mod,"winmm.dll","StealthHUD.ini","DXHRDC-GFX.ini","LICENSE-GFX.txt","LICENSE-ModUtils.txt","LICENSE-ImGui.txt","LICENSE-ASI-Loader.txt","README.txt"};
+    static readonly string[] Names={Mod,"winmm.dll","StealthHUD.ini","DXHRDC-GFX.ini","LICENSE-GFX.txt","LICENSE-ModUtils.txt","LICENSE-ImGui.txt","LICENSE-ASI-Loader.txt","LICENSE-WIL.txt","README.txt"};
     static string Relative(string n){return n.StartsWith("LICENSE-")||n=="README.txt"?"StealthHUD\\"+n:n;}
     static void AtomicWrite(string path,byte[] bytes){
         Directory.CreateDirectory(Path.GetDirectoryName(path));
