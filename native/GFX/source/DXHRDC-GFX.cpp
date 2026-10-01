@@ -1,5 +1,6 @@
 #include "Utils/MemoryMgr.h"
 #include "Utils/Patterns.h"
+#include "StealthHUD.h"
 
 #include <Shlwapi.h>
 
@@ -24,6 +25,7 @@ HMODULE WINAPI LoadLibraryA_DXHR( LPCSTR lpLibFileName )
 
 void OnInitializeHook()
 {
+    InitializeStealthEventHooks();
 	GetModuleFileNameW(hDLLModule, wcModulePath, _countof(wcModulePath) - 3); // Minus max required space for extension
 	PathRenameExtensionW(wcModulePath, L".ini");
 

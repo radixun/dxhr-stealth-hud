@@ -49,7 +49,7 @@ public static class SetupCore {
                 string rel=(string)e.Attribute("name"),dest=Path.Combine(backup,rel);
                 Directory.CreateDirectory(Path.GetDirectoryName(dest));File.Copy(Path.Combine(dir,rel),dest,false);
             }
-            new XDocument(new XElement("install",new XAttribute("version","0.3.1"),entries)).Save(manifest);
+            new XDocument(new XElement("install",new XAttribute("version","0.4.0"),entries)).Save(manifest);
             foreach(var e in entries){string rel=(string)e.Attribute("name");AtomicWrite(Path.Combine(dir,rel),payload[Path.GetFileName(rel)]);}
         }catch{
             // Roll back exactly this transaction, including earlier successful writes.
@@ -95,7 +95,7 @@ public static class SetupCore {
 public sealed class SetupForm:Form {
     TextBox path=new TextBox();Label status=new Label();Button install=new Button(),restore=new Button();
     public SetupForm(){
-        Text="Deus Ex HR DC - Stealth HUD Setup 0.3.1";ClientSize=new Size(660,360);FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;StartPosition=FormStartPosition.CenterScreen;Font=new Font("Segoe UI",10);
+        Text="Deus Ex HR DC - Stealth HUD Setup 0.4.0";ClientSize=new Size(660,360);FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;StartPosition=FormStartPosition.CenterScreen;Font=new Font("Segoe UI",10);
         Controls.Add(new Label{Text="Stealth HUD",Font=new Font("Segoe UI",20,FontStyle.Bold),Location=new Point(22,18),Size=new Size(610,40)});
         Controls.Add(new Label{Text="In-game achievement and stealth-condition indicators.\nSteam Director's Cut / DirectX 11 / Windows 10 or later.",Location=new Point(24,65),Size=new Size(610,50)});
         Controls.Add(new Label{Text="Game folder (contains DXHRDC.exe)",Location=new Point(24,126),Size=new Size(600,25)});

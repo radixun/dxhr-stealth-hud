@@ -2,6 +2,7 @@
 // Reads achievement conditions; never writes them or calls Steam achievements.
 #include "StealthHUD.h"
 #include "BonusConditions.h"
+#include "StealthEvents.h"
 #include "imgui/imgui.h"
 #include <windows.h>
 #include <wincrypt.h>
@@ -78,7 +79,26 @@ Snapshot Poll() {
         return ReadProcessMemory(GetCurrentProcess(),reinterpret_cast<void*>(address),buffer,size,&got)&&got==size;
     });
     if(!Read(0x1879DA0,after)||after)return Snapshot{};
-    s.states[4]=s.bonuses.state(0);s.states[5]=s.bonuses.state(1);
+    const auto events=StealthEvents::Read();
+    static StealthEvents::Sample logged{false,-1,-1,-1};
+    if(events.available!=logged.available || events.detections!=logged.detections ||
+        events.alarms!=logged.alarms || events.restores!=logged.restores) {
+        wchar_t logPath[MAX_PATH];GetModuleFileNameW(nullptr,logPath,MAX_PATH);
+        if(auto slash=wcsrchr(logPath,L'\\')) {
+            wcscpy_s(slash+1,MAX_PATH-(slash+1-logPath),L"StealthHUD-events.log");
+            FILE* log=nullptr;
+            if(_wfopen_s(&log,logPath,L"a")==0 && log) {
+                fprintf(log,"v0.4-test tick=%llu map=%s hooks=%d detection=%ld alarm=%ld restores=%ld foxiest=%u localGhost=%u localSO=%u\n",
+                    GetTickCount64(),s.map,events.available,events.detections,events.alarms,events.restores,flags[1],s.bonuses.state(0),s.bonuses.state(1));
+                fclose(log);
+            }
+        }
+        logged=events;
+    }
+    // Monitoring starts with this runtime/load, not at the beginning of an
+    // imported save. Never present an unobserved history as a green guarantee.
+    s.states[4]=!events.available?BonusConditions::Unknown:events.detections?Failed:Monitoring;
+    s.states[5]=!events.available?BonusConditions::Unknown:events.alarms?Failed:Monitoring;
     s.ready=true;return s;
 }
 void Icon(ImDrawList* d,int id,ImVec2 origin,float z,ImU32 color) {
@@ -111,6 +131,10 @@ void Icon(ImDrawList* d,int id,ImVec2 origin,float z,ImU32 color) {
 }
 }
 
+void InitializeStealthEventHooks() {
+    if(CheckExe())StealthEvents::Install(reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr)));
+}
+
 void DrawStealthHUD() {
     static bool initialized=false;
     if(!initialized){Initialize();initialized=true;}
@@ -140,12 +164,12 @@ void DrawStealthHUD() {
         if(i==3&&!latest.dlc)continue;
         if(i==4){cursor+=8*scale;draw->AddLine(ImVec2(cursor-4*scale,y+12*scale),ImVec2(cursor-4*scale,y+36*scale),IM_COL32(150,160,135,65));}
         State state=latest.states[i];
-        ImU32 c=state==Valid?IM_COL32(151,194,160,255):state==Failed?IM_COL32(237,139,115,255):state==Mixed?IM_COL32(222,185,102,255):IM_COL32(137,151,142,255);
+        const ImU32 c=(state==Valid || state==Monitoring)?IM_COL32(151,194,160,255):IM_COL32(237,139,115,255);
         Icon(draw,i,ImVec2(cursor+7*scale,y+10*scale),scale,c);
         const ImVec2 dot(cursor+32*scale,y+36*scale);
         draw->AddCircleFilled(dot,6*scale,IM_COL32(13,20,17,255),12);
         draw->AddCircle(dot,6*scale,c,12,scale);
-        if(state==Valid){draw->AddLine(ImVec2(dot.x-3*scale,dot.y),ImVec2(dot.x-scale,dot.y+2*scale),c,scale);draw->AddLine(ImVec2(dot.x-scale,dot.y+2*scale),ImVec2(dot.x+3*scale,dot.y-2*scale),c,scale);}
+        if(state==Valid || state==Monitoring){draw->AddLine(ImVec2(dot.x-3*scale,dot.y),ImVec2(dot.x-scale,dot.y+2*scale),c,scale);draw->AddLine(ImVec2(dot.x-scale,dot.y+2*scale),ImVec2(dot.x+3*scale,dot.y-2*scale),c,scale);}
         else if(state==Failed){draw->AddLine(ImVec2(dot.x-2*scale,dot.y-2*scale),ImVec2(dot.x+2*scale,dot.y+2*scale),c,scale);draw->AddLine(ImVec2(dot.x-2*scale,dot.y+2*scale),ImVec2(dot.x+2*scale,dot.y-2*scale),c,scale);}
         else draw->AddText(nullptr,10*scale,ImVec2(dot.x-2.5f*scale,dot.y-6*scale),c,state==NotApplicable?"-":state==Mixed?"!":"?");
         cursor+=40*scale;
@@ -156,10 +180,10 @@ void DrawStealthHUD() {
             "Tracks whether the game still considers this playthrough eligible for completing the story without triggering counted alarms. Being spotted or shot at does not necessarily fail it: detection and an actual alarm are different events.",
             "Tracks eligibility for completing the story on Give Me Deus Ex difficulty. Uses the lowest difficulty recorded by the game during this playthrough. Raising the setting again after lowering it does not restore eligibility.",
             "Tracks the game's Factory Zero eligibility flag during The Missing Link. This indicator appears only in the DLC chapter; its chapter boundaries still require gameplay validation.",
-            "Tracks eligibility for the undetected-completion bonus on active objectives. Reads each objective's own flag, which the game clears when it counts a detection. This is a local bonus, separate from Foxiest of the Hounds.",
-            "Tracks eligibility for the no-alarm bonus on active objectives. Reads a separate local condition and checks whether the objective offers this bonus at all. A controlled gameplay test with an actual alarm is still pending."
+            "Experimental continuous detection-event monitor, including when no active objective offers Ghost. A recorded event stays marked after an objective ends. MONITORING means no event observed since monitoring started or the last state restore; earlier history is unknown. This is not a run-wide achievement flag.",
+            "Experimental continuous alarm-event monitor, including when no active objective offers Smooth Operator. A recorded event stays marked after an objective ends. Monitoring restarts when objective state is restored. Scripted events and actual alarms still require controlled validation. Foxiest above is the game's separate achievement flag."
         };
-        const ImU32 heading=IM_COL32(206,180,123,255),body=IM_COL32(204,211,196,255),muted=IM_COL32(160,167,151,255);
+        const ImU32 heading=IM_COL32(206,180,123,255),body=IM_COL32(204,211,196,255);
         auto layout=[&](bool render,float left,float top,float z,float panelWidth){
             float cy=top+16*z;
             const float wrap=panelWidth-32*z;
@@ -173,7 +197,9 @@ void DrawStealthHUD() {
                 if(i==3&&!latest.dlc)continue;
                 const State current=latest.states[i];
                 const char* label=current==Valid?"OK":current==Failed?"FAILED":current==Mixed?"MIXED":current==NotApplicable?"N/A":"UNKNOWN";
-                const ImU32 color=current==Valid?IM_COL32(151,194,160,255):current==Failed?IM_COL32(237,139,115,255):current==Mixed?IM_COL32(222,185,102,255):muted;
+                if(current==Monitoring)label="MONITORING";
+                if(i>=4 && current==Failed)label="EVENT RECORDED";
+                const ImU32 color=(current==Valid || current==Monitoring)?IM_COL32(151,194,160,255):IM_COL32(237,139,115,255);
                 char title[180];snprintf(title,sizeof(title),"%s  /  %s",names[i],label);
                 text(title,16,color,5);
                 text(descriptions[i],14,body,16);

@@ -6,7 +6,7 @@
 // Verified Steam EXE only. See BONUS-RESEARCH.md for the disassembly chain.
 // Active objective list, NOT the selected journal entry or NPC combat state.
 namespace BonusConditions {
-enum State { Unknown, Valid, Failed, NotApplicable, Mixed };
+enum State { Unknown, Valid, Failed, NotApplicable, Mixed, Monitoring };
 struct Result {
     bool readable=false;
     std::array<unsigned,2> total{}, failed{};
